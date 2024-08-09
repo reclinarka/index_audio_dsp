@@ -7,7 +7,8 @@ import random
 
 # inspired by https://www.researchgate.net/publication/236843786_A_psychoacoustic_bass_enhancement_system_with_improved_transient_and_steady-state_performance
 # --L--------------------------------------------------------------------------> + ----> Left Channel
-#   |                                   (Steady-State Component)                 A
+#   |                                                                            A
+#   |                                   (Steady-State Component)                 |
 #   |         |>---------------------------------> * ----->  PV  --> IFFT -> G   |
 #   |         |                                    A                         |   |
 #   V         |                                    |                         V   |
@@ -15,11 +16,12 @@ import random
 #   A         |                                    |                         A   |
 #   |         |                                    V                         |   |
 #   |         |>---------------------------------> * -----> IFFT --> NLD  -> G   |
-#   |                                     (Transient Component)                  V
+#   |                                     (Transient Component)                  |
+#   |                                                                            V
 # --R -------------------------------------------------------------------------> + ----> Right Channel
 
-transient_weight = 0.1
-steady_weight = 00.15
+transient_weight = 00.95
+steady_weight = 00.95
 original_weight = 1
 
 
@@ -80,7 +82,6 @@ def median_filter_separation(signal_spectrum, kernel_size=3):
 def apply_nld(transient, coefficients=None):
     """Apply Nonlinear Device (NLD) to transient component."""
     # Example NLD function: Polynomial expansion
-    print(transient.shape)
     if coefficients is None:
         # Example polynomial coefficients (these should ideally be derived or specified)
 
@@ -99,7 +100,7 @@ def apply_improved_pv(steady_state, harmonic_order=2):
     """Apply improved Phase Vocoder (PV) to steady-state component."""
     # Example Phase Vocoder harmonic generation
     freq_domain = fft.fft(steady_state)
-    shifted_freq = shift(freq_domain, harmonic_order, cval=0)
+    shifted_freq = shift(freq_domain, 1, order=harmonic_order, cval=0)
     return np.clip(fft.ifft(shifted_freq).real, -1, 1)
 
 
@@ -109,14 +110,14 @@ def combine_signals(enhanced_transient, enhanced_steady_state, sampling_rate):
         # ("peaking", 120, 1.8, 3.8),
         ("peaking", 1_000, 1.499, -2.6),
         ("peaking", 7_120, 0.5, -6.3),
-        ("low_shelf", 50, 0.707, -1.9),
+        ("low_shelf", 50, 0.707, -3.9),
         ("high_shelf", 2_200, 0.707, -0.6)
     ]
 
     min_length = min(len(enhanced_transient), len(enhanced_steady_state))
     bass_effect = enhanced_transient[:min_length] * transient_weight + enhanced_steady_state[
                                                                        :min_length] * steady_weight
-    bass_effect = apply_equalizer(bass_effect, sampling_rate, eq_params)
+    #bass_effect = apply_equalizer(bass_effect, sampling_rate, eq_params)
     return bass_effect
 
 
@@ -133,12 +134,13 @@ def enhance_bass(input_signal, sampling_rate, kernel_size=5, harmonic_order=2):
 
     # Step 3: Apply NLD to transient component
     print("Step 3: Apply NLD to transient component")
-    _, reconstructed_transient = signal.istft(transient, fs=sampling_rate)
+    print(transient.shape)
+    _, reconstructed_transient = signal.istft(np.multiply(transient , signal_spectrum), fs=sampling_rate)
     enhanced_transient = apply_nld(reconstructed_transient)
 
     # Step 4: Apply improved PV to steady-state component
     print("Step 4: Apply improved PV to steady-state component")
-    enhanced_steady_state = apply_improved_pv(steady_state, harmonic_order)
+    enhanced_steady_state = apply_improved_pv(np.multiply(steady_state, signal_spectrum), harmonic_order)
 
     # Step 5: Inverse STFT to reconstruct time-domain signals
     print("Step 5: Inverse STFT to reconstruct time-domain signals")
@@ -152,9 +154,9 @@ def enhance_bass(input_signal, sampling_rate, kernel_size=5, harmonic_order=2):
 
 
 def main():
-    mes = 0
+    mes = 1
     if not mes:
-        filename = "Teminite & Boom Kitty - The Master [Beat Saber OST 7] [ ezmp3.cc ].mp3"
+        filename = "master_original.mp3"
         out_file = "master_enhanced.wav"
         out_format = "wav"
     else:
