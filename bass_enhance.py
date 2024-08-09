@@ -18,8 +18,8 @@ import random
 #   |                                     (Transient Component)                  V
 # --R -------------------------------------------------------------------------> + ----> Right Channel
 
-transient_weight = 0.25
-steady_weight = 00.25
+transient_weight = 0.1
+steady_weight = 00.15
 original_weight = 1
 
 
@@ -80,19 +80,20 @@ def median_filter_separation(signal_spectrum, kernel_size=3):
 def apply_nld(transient, coefficients=None):
     """Apply Nonlinear Device (NLD) to transient component."""
     # Example NLD function: Polynomial expansion
+    print(transient.shape)
     if coefficients is None:
         # Example polynomial coefficients (these should ideally be derived or specified)
 
-        coefficients = [.1 for i in range(0,100)]  # Example coefficients for polynomial expansion
-        # coefficients = [random.uniform(0, 1) for i in range(0,100)]  # Example coefficients for polynomial expansion
-    print(coefficients)
+        coefficients = [100/i for i in range(1,10)]  # Example coefficients for polynomial expansion
+        #coefficients = [random.uniform(0, 1) for i in range(0,100)]  # Example coefficients for polynomial expansion
+        #print(coefficients)
 
     output = np.zeros_like(transient)
     for i, h_i in enumerate(coefficients):
         output += h_i * np.power(transient*0.99, i)
 
-    return output
-
+    output = 1./output
+    return output / max(np.abs(output))
 
 def apply_improved_pv(steady_state, harmonic_order=2):
     """Apply improved Phase Vocoder (PV) to steady-state component."""
@@ -109,7 +110,7 @@ def combine_signals(enhanced_transient, enhanced_steady_state, sampling_rate):
         ("peaking", 1_000, 1.499, -2.6),
         ("peaking", 7_120, 0.5, -6.3),
         ("low_shelf", 50, 0.707, -1.9),
-        ("high_shelf", 2_200, 0.707, -5.6)
+        ("high_shelf", 2_200, 0.707, -0.6)
     ]
 
     min_length = min(len(enhanced_transient), len(enhanced_steady_state))
@@ -132,7 +133,8 @@ def enhance_bass(input_signal, sampling_rate, kernel_size=5, harmonic_order=2):
 
     # Step 3: Apply NLD to transient component
     print("Step 3: Apply NLD to transient component")
-    enhanced_transient = apply_nld(transient)
+    _, reconstructed_transient = signal.istft(transient, fs=sampling_rate)
+    enhanced_transient = apply_nld(reconstructed_transient)
 
     # Step 4: Apply improved PV to steady-state component
     print("Step 4: Apply improved PV to steady-state component")
@@ -140,37 +142,40 @@ def enhance_bass(input_signal, sampling_rate, kernel_size=5, harmonic_order=2):
 
     # Step 5: Inverse STFT to reconstruct time-domain signals
     print("Step 5: Inverse STFT to reconstruct time-domain signals")
-    _, reconstructed_transient = signal.istft(enhanced_transient, fs=sampling_rate)
     _, reconstructed_steady_state = signal.istft(enhanced_steady_state, fs=sampling_rate)
 
     # Step 6: Combine signals
     print("Step 6: Combine signals")
-    enhanced_signal = combine_signals(reconstructed_transient, reconstructed_steady_state, sampling_rate)
+    enhanced_signal = combine_signals(enhanced_transient, reconstructed_steady_state, sampling_rate)
 
     return enhanced_signal
 
 
 def main():
-    # filename = "Teminite & Boom Kitty - The Master [Beat Saber OST 7] [ ezmp3.cc ].mp3"
-    filename = "256kMeasSweep_0_to_20000_0_dBFS_48k_Float_ref.wav"
-    # out_file = "master_enhanced.mp3"
-    out_file = "mes_enhanced.wav"
-    out_format = "wav"
+    mes = 0
+    if not mes:
+        filename = "Teminite & Boom Kitty - The Master [Beat Saber OST 7] [ ezmp3.cc ].mp3"
+        out_file = "master_enhanced.wav"
+        out_format = "wav"
+    else:
+        filename = "256kMeasSweep_0_to_20000_0_dBFS_48k_Float_ref.wav"
+        out_file = "mes_enhanced.wav"
+        out_format = "wav"
 
     eq_params = [
-        ("peaking", 85, 0.5, 10),
-        ("peaking", 174.5, 0.7, -5.6),
-        ("peaking", 590, 0.7, 1.3),
-        ("peaking", 3_020, 2.29, -8.4),
-        ("peaking", 4_270, 1.499, -2.6),
-        ("peaking", 5_980, 2.448, -8.5),
+        ("peaking", 85, 0.6, 12),
+        ("peaking", 174.5, 0.7, -8.6),
+        ("peaking", 590, 0.5, 1.5),
+        ("peaking", 3_020, 2.29, -12),
+        ("peaking", 4_270, 1.499, -1.6),
+        ("peaking", 5_980, 2.448, -11.5),
         ("peaking", 8_310, 4.031, 4.4),
         ("low_shelf", 2, 1.6, -120),
         ("high_shelf", 20_000, 0.5, -25)
     ]
 
     pv_ho = 2
-    kernel_size = 2
+    kernel_size = 10
 
     input_signal, sampling_rate = sf.read(
         filename)  # Example 10-second random signal
@@ -183,11 +188,11 @@ def main():
         print("Step 7: Enhance signal with Bass and apply EQ")
         enhanced_l_signal = input_signal[:, 0][:min_length] * original_weight + bass_signal[:min_length]
         enhanced_l_signal = apply_equalizer(enhanced_l_signal, sampling_rate, eq_params)
-        enhanced_l_signal = apply_equalizer(enhanced_l_signal, sampling_rate, eq_params)
+        #enhanced_l_signal = apply_equalizer(enhanced_l_signal, sampling_rate, eq_params)
 
         enhanced_r_signal = input_signal[:, 1][:min_length] * original_weight + bass_signal[:min_length]
         enhanced_r_signal = apply_equalizer(enhanced_r_signal, sampling_rate, eq_params)
-        enhanced_r_signal = apply_equalizer(enhanced_r_signal, sampling_rate, eq_params)
+        #enhanced_r_signal = apply_equalizer(enhanced_r_signal, sampling_rate, eq_params)
 
         max_amp = max(max(np.abs(enhanced_l_signal)), max(np.abs(enhanced_r_signal)), max(np.abs(mono_signal)))
 
