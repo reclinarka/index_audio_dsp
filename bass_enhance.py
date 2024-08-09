@@ -85,16 +85,17 @@ def apply_nld(transient, coefficients=None):
     if coefficients is None:
         # Example polynomial coefficients (these should ideally be derived or specified)
 
-        coefficients = [100/i for i in range(1,10)]  # Example coefficients for polynomial expansion
-        #coefficients = [random.uniform(0, 1) for i in range(0,100)]  # Example coefficients for polynomial expansion
-        #print(coefficients)
+        coefficients = [100 / i for i in range(1, 10)]  # Example coefficients for polynomial expansion
+        # coefficients = [random.uniform(0, 1) for i in range(0,100)]  # Example coefficients for polynomial expansion
+        # print(coefficients)
 
     output = np.zeros_like(transient)
     for i, h_i in enumerate(coefficients):
-        output += h_i * np.power(transient*0.99, i)
+        output += h_i * np.power(transient * 0.99, i)
 
-    output = 1./output
+    output = 1. / output
     return output / max(np.abs(output))
+
 
 def apply_improved_pv(steady_state, harmonic_order=2):
     """Apply improved Phase Vocoder (PV) to steady-state component."""
@@ -117,7 +118,7 @@ def combine_signals(enhanced_transient, enhanced_steady_state, sampling_rate):
     min_length = min(len(enhanced_transient), len(enhanced_steady_state))
     bass_effect = enhanced_transient[:min_length] * transient_weight + enhanced_steady_state[
                                                                        :min_length] * steady_weight
-    #bass_effect = apply_equalizer(bass_effect, sampling_rate, eq_params)
+    # bass_effect = apply_equalizer(bass_effect, sampling_rate, eq_params)
     return bass_effect
 
 
@@ -135,7 +136,9 @@ def enhance_bass(input_signal, sampling_rate, kernel_size=5, harmonic_order=2):
     # Step 3: Apply NLD to transient component
     print("Step 3: Apply NLD to transient component")
     print(transient.shape)
-    _, reconstructed_transient = signal.istft(np.multiply(transient , signal_spectrum), fs=sampling_rate)
+    transient = np.multiply(transient, signal_spectrum)
+    transient = np.roll(transient, -10, axis=0)
+    _, reconstructed_transient = signal.istft(transient, fs=sampling_rate)
     enhanced_transient = apply_nld(reconstructed_transient)
 
     # Step 4: Apply improved PV to steady-state component
@@ -154,11 +157,12 @@ def enhance_bass(input_signal, sampling_rate, kernel_size=5, harmonic_order=2):
 
 
 def main():
-    mes = 1
+    mes = 0
     if not mes:
         filename = "master_original.mp3"
         out_file = "master_enhanced.wav"
         out_format = "wav"
+
     else:
         filename = "256kMeasSweep_0_to_20000_0_dBFS_48k_Float_ref.wav"
         out_file = "mes_enhanced.wav"
@@ -190,11 +194,11 @@ def main():
         print("Step 7: Enhance signal with Bass and apply EQ")
         enhanced_l_signal = input_signal[:, 0][:min_length] * original_weight + bass_signal[:min_length]
         enhanced_l_signal = apply_equalizer(enhanced_l_signal, sampling_rate, eq_params)
-        #enhanced_l_signal = apply_equalizer(enhanced_l_signal, sampling_rate, eq_params)
+        # enhanced_l_signal = apply_equalizer(enhanced_l_signal, sampling_rate, eq_params)
 
         enhanced_r_signal = input_signal[:, 1][:min_length] * original_weight + bass_signal[:min_length]
         enhanced_r_signal = apply_equalizer(enhanced_r_signal, sampling_rate, eq_params)
-        #enhanced_r_signal = apply_equalizer(enhanced_r_signal, sampling_rate, eq_params)
+        # enhanced_r_signal = apply_equalizer(enhanced_r_signal, sampling_rate, eq_params)
 
         max_amp = max(max(np.abs(enhanced_l_signal)), max(np.abs(enhanced_r_signal)), max(np.abs(mono_signal)))
 
